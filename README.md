@@ -46,20 +46,20 @@ stateDiagram-v2
 
 ## Patterns
 
-| Pattern                                    | Where                                                      | Source                                                                                  |
-| ------------------------------------------ | ---------------------------------------------------------- | --------------------------------------------------------------------------------------- |
-| Saga with compensating steps               | `packages/core/src/saga/states.ts`, `saga/compensation.ts` | Garcia-Molina and Salem, "Sagas" (1987); Richardson, _Microservices Patterns_           |
-| Transactional outbox                       | `saga/unit-of-work.ts`                                     | Richardson, _Microservices Patterns_                                                    |
-| Polling publisher (the sweeper)            | `saga/sweeper.ts`                                          | Richardson, _Microservices Patterns_                                                    |
-| Conditional write on status and version    | `saga/transition.ts`                                       | Kleppmann, _Designing Data-Intensive Applications_, ch. 7                               |
-| Idempotent receiver                        | `worker.ts`, `saga/intake.ts`                              | Hohpe and Woolf, _Enterprise Integration Patterns_                                      |
-| Content enricher                           | `screening/gleif.ts`                                       | _Enterprise Integration Patterns_                                                       |
-| Poller as event producer                   | `screening/poller.ts`                                      | _Enterprise Integration Patterns_ (Polling Consumer)                                    |
-| Approval bound to the exact payload        | `stripe/payments.ts` (`payloadHash`), `saga/decisions.ts`  |                                                                                         |
-| Two different reviewers for a strong match | `policy.ts`, `saga/decisions.ts`                           | OFAC, "A Framework for OFAC Compliance Commitments" (2019)                              |
-| Idempotency keys, plus look-before-write   | `saga/steps.ts` (`completeTransfer`)                       | Stripe API docs; Brandur Leach, "Implementing Stripe-like Idempotency Keys in Postgres" |
-| Expiry means no                            | `saga/sweeper.ts`                                          | Saltzer and Schroeder (1975), fail-safe defaults                                        |
-| Model output as untrusted input            | `agent/assess.ts`                                          | Anthropic API docs on structured outputs and stop reasons                               |
+| Pattern                                    | Where                                                      | Source                                                                                                               |
+| ------------------------------------------ | ---------------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------- |
+| Saga with compensating steps               | `packages/core/src/saga/states.ts`, `saga/compensation.ts` | Garcia-Molina and Salem, "Sagas" (1987); Richardson, _Microservices Patterns_                                        |
+| Transactional outbox                       | `saga/unit-of-work.ts`                                     | Richardson, _Microservices Patterns_                                                                                 |
+| Polling publisher (the sweeper)            | `saga/sweeper.ts`                                          | Richardson, _Microservices Patterns_                                                                                 |
+| Conditional write on status and version    | `saga/transition.ts`                                       | Kleppmann, _Designing Data-Intensive Applications_, ch. 7                                                            |
+| Idempotent receiver                        | `worker.ts`, `saga/intake.ts`                              | Hohpe and Woolf, _Enterprise Integration Patterns_                                                                   |
+| Content enricher                           | `screening/gleif.ts`                                       | _Enterprise Integration Patterns_                                                                                    |
+| Poller as event producer                   | `screening/poller.ts`                                      | _Enterprise Integration Patterns_ (Polling Consumer)                                                                 |
+| Approval bound to the exact payload        | `stripe/payments.ts` (`payloadHash`), `saga/decisions.ts`  |                                                                                                                      |
+| Two different reviewers for a strong match | `policy.ts`, `saga/decisions.ts`                           | A design choice. OFAC's "A Framework for OFAC Compliance Commitments" (2019) asks for escalation, not dual approval. |
+| Idempotency keys, plus look-before-write   | `saga/steps.ts` (`completeTransfer`)                       | Stripe API docs; Brandur Leach, "Implementing Stripe-like Idempotency Keys in Postgres"                              |
+| Expiry means no                            | `saga/sweeper.ts`                                          | Saltzer and Schroeder (1975), fail-safe defaults                                                                     |
+| Model output as untrusted input            | `agent/assess.ts`                                          | Anthropic API docs on structured outputs and stop reasons                                                            |
 
 Regular code and model calls fail differently, so the app handles them on separate paths:
 
