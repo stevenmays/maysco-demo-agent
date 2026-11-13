@@ -1,0 +1,13 @@
+{
+  "name": "@demo/functions",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "@aws-sdk/client-sqs": "^3.1163.0",
+    "@demo/core": "^0.0.1",
+    "@slack/web-api": "^8.3.0",
+    "stripe": "^23.1.0"
+  }
+}

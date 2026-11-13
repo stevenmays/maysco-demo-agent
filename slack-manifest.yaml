@@ -1,0 +1,22 @@
+# Create the app at https://api.slack.com/apps -> "From a manifest", then replace
+# REPLACE_WITH_API_URL with the `api` output of `npm run deploy`.
+display_information:
+  name: Payout Review (demo)
+  description: Approves seller payouts that a sanctions screen flagged.
+  background_color: "#1f2933"
+features:
+  bot_user:
+    display_name: Payout Review
+    always_online: true
+oauth_config:
+  scopes:
+    bot:
+      - chat:write
+      - chat:write.public
+settings:
+  interactivity:
+    is_enabled: true
+    request_url: REPLACE_WITH_API_URL/slack/interactions
+  org_deploy_enabled: false
+  socket_mode_enabled: false
+  token_rotation_enabled: false
