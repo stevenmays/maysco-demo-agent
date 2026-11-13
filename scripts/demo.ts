@@ -3,6 +3,7 @@
  * which wraps `sst shell` so linked secrets are available without printing them.
  *
  *   setup            Create Stripe webhooks, seed the sanctions mirror, create sellers
+ *   seed-list        Re-seed the sanctions mirror without touching Stripe
  *   pay <seller>     A buyer pays; starts a payout saga (add --chaos=<flag>)
  *   bank <seller>    The seller switches to a new bank account
  *   list-add <name>  Publish a sanctions list with one extra fictional entity
@@ -26,10 +27,14 @@ const SELLERS = {
 } as const;
 type SellerKey = keyof typeof SELLERS;
 
-const DEMO_ENTRIES: ReadonlyArray<readonly [number, string]> = [
-  [990_001, "QUILLMARK TRADING HOUSE"],
-  [990_002, "VESSEROT MARINE SUPPLY"],
-  [990_003, "ORLENKA FREIGHT"],
+type Entry = readonly [entNum: number, name: string, remarks: string];
+
+// Fictional entries under a DEMO program. The remarks read like real ones so the
+// model weighs them as evidence instead of commenting on the demo.
+const DEMO_ENTRIES: ReadonlyArray<Entry> = [
+  [990_001, "QUILLMARK TRADING HOUSE", "Limassol, Cyprus. Trading front for a shipping network."],
+  [990_002, "VESSEROT MARINE SUPPLY", "Port Louis, Mauritius. Vessel supply and bunkering."],
+  [990_003, "ORLENKA FREIGHT", "Novorossiysk, Russia. Freight forwarding."],
 ];
 
 const STATE_FILE = ".demo-state.json";
@@ -56,10 +61,10 @@ function setSecret(name: string, value: string) {
 }
 
 /** Appends fictional entity rows in OFAC's SDN.CSV format, dropping the end-of-file byte. */
-function appendEntries(sdn: string, entries: ReadonlyArray<readonly [number, string]>): string {
+function appendEntries(sdn: string, entries: ReadonlyArray<Entry>): string {
   const rows = entries.map(
-    ([id, name]) =>
-      `${id},"${name}",-0- ,"DEMO",-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,"Fictional entry for the demo."`,
+    ([id, name, remarks]) =>
+      `${id},"${name}",-0- ,"DEMO",-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,"${remarks}"`,
   );
   const body = sdn.replaceAll(String.fromCharCode(0x1a), "").trimEnd();
   return [body, ...rows, ""].join(CRLF);
@@ -78,6 +83,16 @@ async function putList(file: string, body: Uint8Array) {
 
 async function download(url: string): Promise<Uint8Array> {
   return new Uint8Array(await (await fetch(url)).arrayBuffer());
+}
+
+/** Copies Treasury's list into the demo mirror and adds the fictional entries. */
+async function seedList() {
+  await putList("ALT.CSV", await download(`${TREASURY}/ALT.CSV`));
+  const sdn = decode(await download(`${TREASURY}/SDN.CSV`));
+  await putList("SDN.CSV", encode(appendEntries(sdn, DEMO_ENTRIES)));
+  console.log(
+    `Sanctions mirror seeded from Treasury, plus ${DEMO_ENTRIES.length} fictional entries.`,
+  );
 }
 
 async function setup() {
@@ -101,12 +116,7 @@ async function setup() {
     "Stripe webhooks created. Run `npm run deploy` so the functions read the new secrets.",
   );
 
-  await putList("ALT.CSV", await download(`${TREASURY}/ALT.CSV`));
-  const sdn = decode(await download(`${TREASURY}/SDN.CSV`));
-  await putList("SDN.CSV", encode(appendEntries(sdn, DEMO_ENTRIES)));
-  console.log(
-    `Sanctions mirror seeded from Treasury, plus ${DEMO_ENTRIES.length} fictional entries.`,
-  );
+  await seedList();
 
   const state = load();
   for (const [key, name] of Object.entries(SELLERS) as [SellerKey, string][]) {
@@ -115,7 +125,11 @@ async function setup() {
       country: "US",
       business_type: "company",
       company: { name },
-      business_profile: { name, mcc: "5999", product_description: "Demo marketplace seller" },
+      business_profile: {
+        name,
+        mcc: "5999",
+        product_description: "Demo marketplace seller",
+      },
       capabilities: { transfers: { requested: true } },
       controller: {
         stripe_dashboard: { type: "none" },
@@ -171,7 +185,10 @@ async function listAdd(name: string) {
   const sdn = decode(await current.Body!.transformToByteArray());
   const entNum = 991_000 + Math.floor(Math.random() * 8_999);
   const entity = name.toUpperCase();
-  await putList("SDN.CSV", encode(appendEntries(sdn, [[entNum, entity]])));
+  await putList(
+    "SDN.CSV",
+    encode(appendEntries(sdn, [[entNum, entity, "Added during the demo."]])),
+  );
   console.log(
     `Published fictional entry ${entNum} "${entity}". The poller reads it within a minute.`,
   );
@@ -197,6 +214,7 @@ const [command, arg] = process.argv.slice(2);
 const chaos = process.argv.find((a) => a.startsWith("--chaos="))?.split("=")[1];
 const commands: Record<string, () => Promise<void>> = {
   setup,
+  "seed-list": seedList,
   pay: () => pay(arg!, chaos),
   bank: () => changeBank(arg!),
   "list-add": () => listAdd(arg!),
