@@ -6,18 +6,54 @@
 
 declare module "sst" {
   export interface Resource {
-    "AnthropicApiKey": { "type": "sst.sst.Secret"; "value": string }
-    "Api": { "type": "sst.aws.ApiGatewayV2"; "url": string }
-    "DatabaseUrl": { "type": "sst.sst.Secret"; "value": string }
-    "SanctionsMirror": { "name": string; "type": "sst.aws.Bucket" }
-    "SlackBotToken": { "type": "sst.sst.Secret"; "value": string }
-    "SlackChannelId": { "type": "sst.sst.Secret"; "value": string }
-    "SlackSigningSecret": { "type": "sst.sst.Secret"; "value": string }
-    "Steps": { "type": "sst.aws.Queue"; "url": string }
-    "StepsDlq": { "type": "sst.aws.Queue"; "url": string }
-    "StripeConnectWebhookSecret": { "type": "sst.sst.Secret"; "value": string }
-    "StripeSecretKey": { "type": "sst.sst.Secret"; "value": string }
-    "StripeWebhookSecret": { "type": "sst.sst.Secret"; "value": string }
+    "AnthropicApiKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "Api": {
+      "type": "sst.aws.ApiGatewayV2"
+      "url": string
+    }
+    "DatabaseUrl": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "SanctionsMirror": {
+      "name": string
+      "type": "sst.aws.Bucket"
+    }
+    "SlackBotToken": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "SlackChannelId": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "SlackSigningSecret": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "Steps": {
+      "type": "sst.aws.Queue"
+      "url": string
+    }
+    "StepsDlq": {
+      "type": "sst.aws.Queue"
+      "url": string
+    }
+    "StripeConnectWebhookSecret": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "StripeSecretKey": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
+    "StripeWebhookSecret": {
+      "type": "sst.sst.Secret"
+      "value": string
+    }
   }
 }
 /// <reference path="sst-env.d.ts" />

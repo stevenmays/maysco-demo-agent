@@ -2,3 +2,4 @@ node_modules
 .sst
 .demo-state.json
 .env*
+.neon

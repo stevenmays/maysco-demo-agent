@@ -13,6 +13,9 @@ type DecisionMessage = Extract<QueueMessage, { kind: "slack.decision" }>;
  */
 export async function recordDecision(deps: Deps, msg: DecisionMessage): Promise<void> {
   const outcome = await commit(deps.db, deps.queue, async (tx) => {
+    // Racing reviewers: when 2 people click Approve at the same moment, the second
+    // transaction waits here, then sees the saga is no longer awaiting review and
+    // gets "This review is closed" instead of a second approval.
     const saga = await tx.trx
       .selectFrom("sagas")
       .selectAll()

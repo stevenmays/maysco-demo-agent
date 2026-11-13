@@ -126,18 +126,18 @@ If `sst` reports that AWS credentials aren't configured after `aws login`, expor
 
 ## Demo scenes
 
-| Scene | Command                                                                                          | What happens                                                                         |
-| ----- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------ |
-| 1     | `npm run demo -- pay clean`                                                                      | No close match. Cleared and paid with no model call.                                 |
-| 2     | `npm run demo -- pay near`                                                                       | A near-miss name. The agent explains the match, and a reviewer approves or rejects.  |
-| 3     | `npm run demo -- pay race`                                                                       | 2 reviewers click Approve at the same moment. One decision applies.                  |
-| 4     | `npm run demo -- pay strong`, approve once, then `npm run demo -- bank strong`                   | The bank change voids the first approval and resets the card.                        |
-| 5     | `npm run demo -- pay near`, then wait                                                            | A reminder after 2 minutes. At 5 minutes the review expires and the funds stay held. |
-| 6     | `npm run demo -- pay harbor`, then `npm run demo -- list-add "Tidewick Lantern Imports Limited"` | A new sanctions entry matches a paid seller. The transfer is reversed.               |
-| 7     | `stripe events resend <evt_id> --webhook-endpoint <we_id>`                                       | Stripe redelivers an event. The inbox ignores it.                                    |
-| 8     | `npm run demo -- pay clean --chaos=skip_dispatch`                                                | The step commits but its message never sends. The sweeper finds it within 2 minutes. |
-| 9     | `npm run demo -- pay near --chaos=llm_max_tokens`                                                | The model stops at `max_tokens`. The payout goes to a reviewer.                      |
-| 10    | `npm run demo -- pay gray`                                                                       | A gray-zone name the agent clears on its own. Slack shows the log, with no buttons.  |
+| Scene | Command                                                                                          | What happens                                                                                                                               |
+| ----- | ------------------------------------------------------------------------------------------------ | ------------------------------------------------------------------------------------------------------------------------------------------ |
+| 1     | `npm run demo -- pay clean`                                                                      | No close match. Cleared and paid with no model call.                                                                                       |
+| 2     | `npm run demo -- pay near`                                                                       | A near-miss name. The agent explains the match, and a reviewer approves or rejects.                                                        |
+| 3     | Not scripted. See the race comment in `packages/core/src/saga/decisions.ts` and its test.        | 2 reviewers click Approve at the same moment. The row lock lets one decision through, and the other reviewer sees "This review is closed". |
+| 4     | `npm run demo -- pay strong`, approve once, then `npm run demo -- bank strong`                   | The bank change voids the first approval and resets the card.                                                                              |
+| 5     | `npm run demo -- pay near`, then wait                                                            | A reminder after 2 minutes. At 5 minutes the review expires and the funds stay held.                                                       |
+| 6     | `npm run demo -- pay harbor`, then `npm run demo -- list-add "Tidewick Lantern Imports Limited"` | A new sanctions entry matches a paid seller. The transfer is reversed.                                                                     |
+| 7     | `stripe events resend <evt_id> --webhook-endpoint <we_id>`                                       | Stripe redelivers an event. The inbox ignores it.                                                                                          |
+| 8     | `npm run demo -- pay clean --chaos=skip_dispatch`                                                | The step commits but its message never sends. The sweeper finds it within 2 minutes.                                                       |
+| 9     | `npm run demo -- pay near --chaos=llm_max_tokens`                                                | The model stops at `max_tokens`. The payout goes to a reviewer.                                                                            |
+| 10    | `npm run demo -- pay gray`                                                                       | A gray-zone name the agent clears on its own. Slack shows the log, with no buttons.                                                        |
 
 `npm run demo -- reset` clears payouts between takes. The demo stage uses short timers and its own copy of the sanctions list. `setup` seeds that copy from Treasury and adds the fictional entries, and scene 6 adds one more.
 
