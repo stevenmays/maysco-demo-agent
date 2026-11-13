@@ -1,9 +1,11 @@
 import { randomUUID } from "node:crypto";
 import { setTimeout as sleep } from "node:timers/promises";
+import { sql } from "kysely";
 import type { Deps } from "../deps.js";
 import { renderCard } from "./card.js";
 
 const PENDING = "pending:";
+const STALE_CLAIM_MS = 30_000;
 
 /**
  * Makes Slack match the database: one card per saga, updated in place, and one
@@ -23,12 +25,22 @@ export async function syncSlack(deps: Deps, sagaId: string): Promise<void> {
 
 async function ensureCard(deps: Deps, sagaId: string): Promise<string | null> {
   const { db, chat } = deps;
-  const claim = `${PENDING}${randomUUID()}`;
+  // The claim carries its time, so a claim left by a Lambda that died mid-post expires.
+  const claim = `${PENDING}${Date.now()}:${randomUUID()}`;
+  const staleBefore = Date.now() - STALE_CLAIM_MS;
   const claimed = await db
     .updateTable("sagas")
     .set({ slack_ts: claim, slack_channel: deps.config.slackChannel })
     .where("id", "=", sagaId)
-    .where("slack_ts", "is", null)
+    .where((eb) =>
+      eb.or([
+        eb("slack_ts", "is", null),
+        eb.and([
+          eb("slack_ts", "like", `${PENDING}%`),
+          eb(sql<number>`split_part(slack_ts, ':', 2)::bigint`, "<", staleBefore),
+        ]),
+      ]),
+    )
     .returningAll()
     .executeTakeFirst();
   if (claimed) {

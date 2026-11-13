@@ -331,4 +331,17 @@ describe("slack sync", () => {
     expect(deps.chat.posts).toHaveLength(1);
     expect(deps.chat.replies).toHaveLength(1);
   });
+
+  it("takes over a card claim left by a Lambda that died while posting", async () => {
+    deps.payments.addSeller("acct_clean", "Brindlecove Ceramics LLC");
+    await pay("acct_clean");
+    const s = await saga();
+    const deadClaim = `pending:${Date.now() - 60_000}:dead-worker`;
+    await deps.db.updateTable("sagas").set({ slack_ts: deadClaim }).execute();
+
+    await syncSlack(deps, s.id);
+
+    expect(deps.chat.posts).toHaveLength(1);
+    expect((await saga()).slack_ts).toBe("ts_1");
+  });
 });

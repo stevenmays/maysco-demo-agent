@@ -41,4 +41,23 @@ describe("renderCard", () => {
     const card = renderCard(saga, [{ reviewer: "U1", reviewer_name: "Ana" }]);
     expect(JSON.stringify(card.blocks)).toContain("1 of 2 approved (Ana)");
   });
+
+  it("asks for 1 reviewer without saying 'different'", () => {
+    const card = renderCard({ ...saga, required_approvals: 1 } as Saga, []);
+    expect(JSON.stringify(card.blocks)).toContain("Needs 1 reviewer · 0 of 1 approved");
+  });
+
+  it("wraps multi-program SDN entries in brackets", () => {
+    const screening = {
+      seller: { legalName: "Brindlecove Ceramics LLC", country: "US" },
+      lei: null,
+      candidates: [
+        { name: "CEIEC", matchedName: "CEIEC", program: "VENEZUELA] [CUBA-EO14404", score: 0.77 },
+      ],
+      assessment: null,
+      decision: { tier: "clear", requiredApprovals: 0, reason: "x" },
+    };
+    const card = renderCard({ ...saga, status: "paid", screening } as Saga, []);
+    expect(JSON.stringify(card.blocks)).toContain("CEIEC · [VENEZUELA] [CUBA-EO14404]");
+  });
 });

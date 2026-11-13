@@ -2,7 +2,7 @@
 
 A reference app for one question: how do you put a person inside an event-driven workflow without paying anyone twice, losing a message, or trusting a model's output blindly?
 
-A marketplace pays out to sellers through Stripe Connect (test mode). Before money moves, the app screens each seller against the US Treasury OFAC SDN list. A Claude model weighs the close calls. A compliance reviewer approves or rejects the flagged payouts in Slack. Only an approved decision releases the transfer, and a double-entry ledger records every movement.
+A marketplace pays out to sellers through Stripe Connect (test mode). Before money moves, the app screens each seller against the US Treasury OFAC SDN list. A Claude model weighs the close calls. A compliance reviewer approves or rejects the flagged payouts in Slack. Only an approved decision releases the transfer. The marketplace keeps a 10% commission, so a $125.00 payment pays the seller $112.50, and a double-entry ledger records every movement, including the commission.
 
 This is a demo. It isn't legal or compliance advice, and it screens company names only. The seller names are invented. The demo screens them against the real SDN list plus 3 fictional entries, so every near miss in the demo matches a fictional entry.
 
@@ -84,6 +84,10 @@ PGlite has one connection, so the tests can't prove a race between two Lambdas. 
 
 You need an AWS account, a [Neon](https://neon.tech) Postgres database, a Stripe account in test mode with Connect, a Slack workspace, and an Anthropic API key.
 
+Before `setup` can create sellers, Stripe requires 2 acknowledgments in **Settings > Connect > Platform profile**: the refunds and chargebacks liability acknowledgment, and the ongoing seller compliance acknowledgment. These are account settings, not test-mode settings.
+
+If `sst` reports that AWS credentials aren't configured after `aws login`, export them into the shell first: `eval "$(aws configure export-credentials --format env)"`.
+
 1. Set the secrets. SST stores them in AWS SSM. Leave the value off the command line so it stays out of your shell history. SST reads it from standard input, so `< file` also works.
 
    ```sh
@@ -132,6 +136,8 @@ The queue consumer long-polls SQS, and the sweeper and poller wake the database 
 ## Known limits
 
 - Slack has no idempotency key. A crash between posting a card and saving its timestamp can post a second card. Its buttons stay safe, because every click is checked against the saga row.
-- Stripe can drop an idempotency key after 24 hours. The transfer step looks for an existing transfer by `transfer_group` before it creates one.
+- Stripe can drop an idempotency key after 24 hours. The transfer step looks for an existing transfer to the seller with its saga ID in `metadata` before it creates one.
 - In test mode, Stripe retries a failed webhook only 3 times over a few hours.
+- The approval hash uses the bank account's record ID, not its fingerprint. Re-adding even the same account number voids an approval, which is the conservative choice for fraud control.
+- The 10% commission also covers Stripe's processing fee. A transfer can't exceed what the charge added to the platform's available balance.
 - The demo doesn't release held funds. A real system needs a second, audited path for that.
