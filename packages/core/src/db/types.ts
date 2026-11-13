@@ -18,7 +18,9 @@ export interface SagasTable {
   seller_account_id: string;
   payment_intent_id: string;
   charge_id: string | null;
+  /** What the seller receives: the buyer's payment minus the platform commission. */
   amount: number;
+  gross_amount: number | null;
   currency: string;
   status: SagaStatus;
   version: Generated<number>;

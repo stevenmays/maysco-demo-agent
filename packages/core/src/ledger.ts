@@ -7,15 +7,20 @@ export interface Posting {
 }
 
 const cash = "platform_cash";
+const revenue = "platform_commission";
 const payable = (s: Saga) => `seller_payable:${s.seller_account_id}`;
 const held = (s: Saga) => `held_payable:${s.seller_account_id}`;
 
 // Debits are positive, credits negative. Every journal entry sums to zero.
 export const journal = {
-  paymentReceived: (s: Saga): Posting[] => [
-    { account: cash, amount: s.amount },
-    { account: payable(s), amount: -s.amount },
-  ],
+  paymentReceived: (s: Saga): Posting[] => {
+    const gross = s.gross_amount ?? s.amount;
+    return [
+      { account: cash, amount: gross },
+      { account: payable(s), amount: -s.amount },
+      { account: revenue, amount: -(gross - s.amount) },
+    ];
+  },
   payoutSent: (s: Saga): Posting[] => [
     { account: payable(s), amount: s.amount },
     { account: cash, amount: -s.amount },

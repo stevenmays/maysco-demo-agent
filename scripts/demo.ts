@@ -82,6 +82,10 @@ async function download(url: string): Promise<Uint8Array> {
 
 async function setup() {
   const api = Resource.Api.url;
+  // Rerunnable: replace this stage's own endpoints instead of adding duplicates.
+  for await (const hook of stripe.webhookEndpoints.list({ limit: 100 })) {
+    if (hook.url.startsWith(api)) await stripe.webhookEndpoints.del(hook.id);
+  }
   const platform = await stripe.webhookEndpoints.create({
     url: `${api}/stripe/webhook`,
     enabled_events: ["payment_intent.succeeded"],
@@ -111,7 +115,7 @@ async function setup() {
       country: "US",
       business_type: "company",
       company: { name },
-      business_profile: { name, mcc: "5999", url: "https://example.com" },
+      business_profile: { name, mcc: "5999", product_description: "Demo marketplace seller" },
       capabilities: { transfers: { requested: true } },
       controller: {
         stripe_dashboard: { type: "none" },

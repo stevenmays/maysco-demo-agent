@@ -107,16 +107,23 @@ export interface TestDeps extends Deps {
   chat: FakeChat;
 }
 
+// Fictional entries, the same ones the demo adds to its copy of the SDN list.
 export const ENTITIES: SanctionedEntity[] = [
   {
-    ent_num: 36,
-    name: "AEROCARIBBEAN AIRLINES",
-    program: "CUBA",
-    remarks: "Havana, Cuba",
-    aliases: ["AERO-CARIBBEAN"],
+    ent_num: 990_001,
+    name: "QUILLMARK TRADING HOUSE",
+    program: "DEMO",
+    remarks: null,
+    aliases: [],
   },
-  { ent_num: 559, name: "CIMEX", program: "CUBA", remarks: null, aliases: [] },
-  { ent_num: 555, name: "COPROVA", program: "CUBA", remarks: null, aliases: ["COPROVA SARL"] },
+  {
+    ent_num: 990_002,
+    name: "VESSEROT MARINE SUPPLY",
+    program: "DEMO",
+    remarks: null,
+    aliases: ["VESSEROT SHIPPING"],
+  },
+  { ent_num: 990_003, name: "ORLENKA FREIGHT", program: "DEMO", remarks: null, aliases: [] },
 ];
 
 export async function seedEntities(db: Db, entities = ENTITIES) {

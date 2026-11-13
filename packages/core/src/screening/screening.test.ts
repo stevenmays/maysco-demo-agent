@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import { ENTITIES } from "../test-utils.js";
 import { topCandidates } from "./match.js";
 import { diffEntities, parseCsv, parseEntities } from "./sdn.js";
 import { nameScore, normalizeName } from "./similarity.js";
@@ -7,14 +6,24 @@ import { nameScore, normalizeName } from "./similarity.js";
 describe("nameScore", () => {
   it("ignores legal forms, punctuation, and spacing", () => {
     expect(normalizeName("Coprova, S.A.R.L.")).toEqual(["COPROVA", "S", "A", "R", "L"]);
-    expect(nameScore("Aero Caribbean Airlines Inc", "AEROCARIBBEAN AIRLINES")).toBe(1);
-    expect(nameScore("Avia Import LLC", "AVIA IMPORT")).toBe(1);
+    expect(nameScore("Quill Mark Trading House, Inc.", "QUILLMARK TRADING HOUSE")).toBe(1);
+    expect(nameScore("Orlenka Freight LLC", "ORLENKA FREIGHT")).toBe(1);
   });
   it("keeps unrelated names below the model threshold", () => {
-    expect(nameScore("Maple Ridge Ceramics LLC", "COPROVA")).toBeLessThan(0.82);
+    expect(nameScore("Brindlecove Ceramics LLC", "QUILLMARK TRADING HOUSE")).toBeLessThan(0.82);
   });
   it("ranks aliases with the entity", () => {
-    const [top] = topCandidates("Aero-Caribbean", ENTITIES, 1);
+    const entities = [
+      {
+        ent_num: 36,
+        name: "AEROCARIBBEAN AIRLINES",
+        program: "CUBA",
+        remarks: null,
+        aliases: ["AERO-CARIBBEAN"],
+      },
+      { ent_num: 555, name: "COPROVA", program: "CUBA", remarks: null, aliases: [] },
+    ];
+    const [top] = topCandidates("Aero-Caribbean", entities, 1);
     expect(top!.entity.ent_num).toBe(36);
     expect(top!.matchedName).toBe("AERO-CARIBBEAN");
   });

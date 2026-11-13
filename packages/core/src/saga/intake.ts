@@ -5,6 +5,10 @@ import type { Queue } from "../messages.js";
 import { advance, record } from "./transition.js";
 import { commit, type Tx } from "./unit-of-work.js";
 
+// The marketplace keeps a commission. It also leaves room for Stripe's processing fee,
+// because a transfer can't exceed what the charge added to the platform balance.
+export const PLATFORM_COMMISSION = 0.1;
+
 export interface PaymentEvent {
   eventId: string;
   paymentIntentId: string;
@@ -53,7 +57,8 @@ export async function startSaga(
           seller_account_id: event.sellerAccountId,
           payment_intent_id: event.paymentIntentId,
           charge_id: event.chargeId,
-          amount: event.amount,
+          amount: Math.round(event.amount * (1 - PLATFORM_COMMISSION)),
+          gross_amount: event.amount,
           currency: event.currency,
           status: "received",
           payload_hash: null,

@@ -58,7 +58,7 @@ export function renderCard(saga: Saga, approvals: ApprovalView[]): Message {
       text: {
         type: "mrkdwn",
         text: top
-          ? `*Closest SDN entry*\n${top.name}${top.matchedName !== top.name ? ` (alias "${top.matchedName}")` : ""} · ${top.program} · name score *${top.score.toFixed(2)}*`
+          ? `*Closest SDN entry*\n${top.name}${top.matchedName !== top.name ? ` (alias "${top.matchedName}")` : ""} · [${top.program}] · name score *${top.score.toFixed(2)}*`
           : "*Closest SDN entry*\nnone",
       },
     });

@@ -4,8 +4,8 @@ import { ENTITIES } from "../test-utils.js";
 import { type AssessInput, ClaudeAssessor } from "./assess.js";
 
 const input: AssessInput = {
-  seller: { legalName: "Cimex Logistics Ltd", country: "US", lei: null },
-  candidates: [{ entity: ENTITIES[1]!, matchedName: "CIMEX", score: 0.86 }],
+  seller: { legalName: "Quillmark Traders LLC", country: "US", lei: null },
+  candidates: [{ entity: ENTITIES[0]!, matchedName: "QUILLMARK TRADING HOUSE", score: 0.84 }],
 };
 
 function fakeClient(response: unknown, inputTokens = 500) {
@@ -28,9 +28,9 @@ const reply = (stop_reason: string, text: string) => ({
 });
 const assessment = {
   verdict: "possible_match",
-  matched_ent_num: 559,
-  reasons: ["Shares the distinctive token CIMEX"],
-  summary: "Possibly related to the Cuban conglomerate CIMEX.",
+  matched_ent_num: 990_001,
+  reasons: ["Shares the distinctive token QUILLMARK"],
+  summary: "Possibly related to the listed Quillmark Trading House.",
 };
 
 describe("ClaudeAssessor", () => {
