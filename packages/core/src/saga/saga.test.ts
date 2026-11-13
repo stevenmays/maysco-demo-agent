@@ -1,7 +1,14 @@
 import { sql } from "kysely";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 import { syncSlack } from "../slack/sync.js";
-import { drain, ledgerTotals, makeDeps, okPossible, type TestDeps } from "../test-utils.js";
+import {
+  drain,
+  ledgerTotals,
+  makeDeps,
+  okNoMatch,
+  okPossible,
+  type TestDeps,
+} from "../test-utils.js";
 import { handleMessage } from "../worker.js";
 import { onListChanged, onSellerChanged } from "./compensation.js";
 import { recordDecision } from "./decisions.js";
@@ -199,6 +206,38 @@ describe("payout saga", () => {
 
     expect((await saga()).transfer_id).toBe("tr_existing");
     expect(deps.payments.creates).toBe(0);
+  });
+});
+
+describe("agent tier", () => {
+  it("lets the agent clear a gray-zone seller and logs it in Slack", async () => {
+    deps.payments.addSeller("acct_gray", "Copperline Marine Supply");
+    await pay("acct_gray");
+    await drain(deps);
+
+    const s = await saga();
+    expect(deps.assessor.calls).toHaveLength(1);
+    expect(s.status).toBe("paid");
+    expect(s.risk_tier).toBe("agent_clear");
+    expect(
+      deps.chat.replies.some((r) => r.startsWith("*agent:* Cleared without a reviewer.")),
+    ).toBe(true);
+    expect(JSON.stringify(deps.chat.updates.at(-1)!.message.blocks)).toContain(
+      "Cleared by the agent",
+    );
+  });
+
+  it("sends the same seller to a person when the agent isn't sure", async () => {
+    deps.payments.addSeller("acct_gray", "Copperline Marine Supply");
+    deps.assessor.next = () => {
+      const out = okNoMatch();
+      if (out.kind === "ok") out.assessment.confidence = "medium";
+      return out;
+    };
+    await pay("acct_gray");
+    await drain(deps);
+
+    expect((await saga()).status).toBe("awaiting_review");
   });
 });
 

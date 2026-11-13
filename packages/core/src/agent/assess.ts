@@ -11,6 +11,7 @@ const REMARKS_LIMIT = 400;
 
 export const AssessmentSchema = z.object({
   verdict: z.enum(["no_match", "possible_match", "likely_match"]),
+  confidence: z.enum(["low", "medium", "high"]),
   matched_ent_num: z.number().int().nullable(),
   reasons: z.array(z.string()).max(4),
   summary: z.string(),
@@ -54,6 +55,8 @@ Decide whether the seller is plausibly the same organization as any candidate.
 Weigh the full name, the country, the LEI record, and the program and remarks.
 A shared common word is weak evidence. A matching distinctive name, alias, or country is strong evidence.
 You don't make the final decision. A person reviews anything other than no_match.
+Set confidence to high only when the evidence clearly separates the seller from every candidate, or clearly ties it to one.
+A no_match with high confidence on a small payout releases it without a person, so be strict.
 Write the summary as one plain sentence for the reviewer.`;
 
 function describe(input: AssessInput, candidateLimit: number): string {

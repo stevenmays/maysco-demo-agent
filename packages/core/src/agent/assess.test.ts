@@ -28,6 +28,7 @@ const reply = (stop_reason: string, text: string) => ({
 });
 const assessment = {
   verdict: "possible_match",
+  confidence: "medium",
   matched_ent_num: 990_001,
   reasons: ["Shares the distinctive token QUILLMARK"],
   summary: "Possibly related to the listed Quillmark Trading House.",

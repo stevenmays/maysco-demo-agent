@@ -65,7 +65,18 @@ Regular code and model calls fail differently, so the app handles them on separa
 
 - **Regular code** (a bug, a bad config) throws. SQS retries the message 5 times, then moves it to the dead-letter queue.
 - **Model I/O** returns a typed failure. An unavailable API retries up to 3 times. Other failures never retry: a `max_tokens` stop, a refusal, output that fails the schema, or a reference to an entity the model wasn't shown. Each one sends the payout to a reviewer with "The agent couldn't decide".
-- **Policy is code.** The name score sets a floor the model can't lower. The model can only add caution.
+- **Policy is code.** The name score sets a floor the model can't lower.
+
+### Who decides
+
+| Name score     | Decided by                                                                                                                   | People involved                                                                   |
+| -------------- | ---------------------------------------------------------------------------------------------------------------------------- | --------------------------------------------------------------------------------- |
+| Below 0.82     | Code clears it. No model call.                                                                                               | None                                                                              |
+| 0.82 to 0.90   | The agent clears it if it finds no match with high confidence and the payout is $500 or less. Otherwise it goes to a person. | Clears appear in Slack as a log, with the agent's reasoning, and need no approval |
+| 0.90 to 0.95   | 1 person approves. The card shows the agent's view, but the agent can't clear it.                                            | 1 reviewer                                                                        |
+| 0.95 and above | 2 different people approve.                                                                                                  | 2 reviewers                                                                       |
+
+The limits on the agent (`AGENT_CLEAR_LIMIT` and the confidence rule in `packages/core/src/policy.ts`) live in code, not in the prompt. A prompt injection or a bad model reply can't move a payout out of review.
 
 ## Run the tests
 
@@ -126,6 +137,7 @@ If `sst` reports that AWS credentials aren't configured after `aws login`, expor
 | 7     | `stripe events resend <evt_id> --webhook-endpoint <we_id>`                                       | Stripe redelivers an event. The inbox ignores it.                                    |
 | 8     | `npm run demo -- pay clean --chaos=skip_dispatch`                                                | The step commits but its message never sends. The sweeper finds it within 2 minutes. |
 | 9     | `npm run demo -- pay near --chaos=llm_max_tokens`                                                | The model stops at `max_tokens`. The payout goes to a reviewer.                      |
+| 10    | `npm run demo -- pay gray`                                                                       | A gray-zone name the agent clears on its own. Slack shows the log, with no buttons.  |
 
 `npm run demo -- reset` clears payouts between takes. The demo stage uses short timers and its own copy of the sanctions list. `setup` seeds that copy from Treasury and adds the fictional entries, and scene 6 adds one more.
 

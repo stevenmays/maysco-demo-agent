@@ -63,7 +63,9 @@ export async function screen(deps: Deps, saga: Saga, attempt: number): Promise<v
         : { kind: "failed", reason: outcome.reason };
   }
 
-  const decision = decide(topScore, result);
+  const decision = decide(topScore, result, saga.amount);
+  const agentSummary =
+    decision.tier === "agent_clear" && result.kind === "ok" ? result.assessment.summary : null;
   const screening: Screening = {
     seller: { legalName: seller.legalName, country: seller.country },
     lei,
@@ -85,10 +87,12 @@ export async function screen(deps: Deps, saga: Saga, attempt: number): Promise<v
   };
 
   await commit(deps.db, deps.queue, async (tx) => {
-    if (decision.tier === "clear") {
+    if (decision.tier === "clear" || decision.tier === "agent_clear") {
       const moved = await transition(tx, saga, "cleared", {
-        actor: "policy",
-        note: `Cleared automatically. ${decision.reason}.`,
+        actor: agentSummary ? "agent" : "policy",
+        note: agentSummary
+          ? `Cleared without a reviewer. ${agentSummary} ${decision.reason}.`
+          : `Cleared automatically. ${decision.reason}.`,
         patch,
       });
       if (moved) await advance(tx, saga.id, "cleared");

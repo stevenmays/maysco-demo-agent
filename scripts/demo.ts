@@ -4,6 +4,7 @@
  *
  *   setup            Create Stripe webhooks, seed the sanctions mirror, create sellers
  *   seed-list        Re-seed the sanctions mirror without touching Stripe
+ *   sellers          Create any missing demo sellers without touching webhooks
  *   pay <seller>     A buyer pays; starts a payout saga (add --chaos=<flag>)
  *   bank <seller>    The seller switches to a new bank account
  *   list-add <name>  Publish a sanctions list with one extra fictional entity
@@ -24,6 +25,7 @@ const SELLERS = {
   race: "Vesserot Marine LLC",
   strong: "Orlenka Freight LLC",
   harbor: "Tidewick Lantern Imports",
+  gray: "Copperline Marine Supply",
 } as const;
 type SellerKey = keyof typeof SELLERS;
 
@@ -117,7 +119,11 @@ async function setup() {
   );
 
   await seedList();
+  await createSellers();
+}
 
+/** Creates any demo seller that `.demo-state.json` doesn't have yet. */
+async function createSellers() {
   const state = load();
   for (const [key, name] of Object.entries(SELLERS) as [SellerKey, string][]) {
     if (state.sellers[key]) continue;
@@ -215,6 +221,7 @@ const chaos = process.argv.find((a) => a.startsWith("--chaos="))?.split("=")[1];
 const commands: Record<string, () => Promise<void>> = {
   setup,
   "seed-list": seedList,
+  sellers: createSellers,
   pay: () => pay(arg!, chaos),
   bank: () => changeBank(arg!),
   "list-add": () => listAdd(arg!),

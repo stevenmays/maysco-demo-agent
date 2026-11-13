@@ -77,6 +77,18 @@ export function renderCard(saga: Saga, approvals: ApprovalView[]): Message {
     });
   }
 
+  if (saga.risk_tier === "agent_clear") {
+    blocks.push({
+      type: "context",
+      elements: [
+        {
+          type: "mrkdwn",
+          text: ":robot_face: *Cleared by the agent.* Logged for review. No approval needed.",
+        },
+      ],
+    });
+  }
+
   if (saga.status === "awaiting_review") {
     const needed = saga.required_approvals;
     const names = approvals.map((a) => a.reviewer_name).join(", ");

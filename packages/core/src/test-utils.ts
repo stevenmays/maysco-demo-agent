@@ -64,6 +64,7 @@ export const okNoMatch = (): AssessOutcome => ({
   call: { ...call, outcome: "ok" },
   assessment: {
     verdict: "no_match",
+    confidence: "high",
     matched_ent_num: null,
     reasons: ["Different industry"],
     summary: "Unrelated.",
@@ -74,6 +75,7 @@ export const okPossible = (input: AssessInput): AssessOutcome => ({
   call: { ...call, outcome: "ok" },
   assessment: {
     verdict: "possible_match",
+    confidence: "medium",
     matched_ent_num: input.candidates[0]!.entity.ent_num,
     reasons: ["Distinctive name token matches"],
     summary: "The seller shares a distinctive name with a sanctioned entity.",
