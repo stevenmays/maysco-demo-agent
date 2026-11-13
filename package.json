@@ -1,0 +1,30 @@
+{
+  "name": "maysco-demo-agent",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "sst dev",
+    "deploy": "sst deploy --stage demo",
+    "db:migrate": "sst shell --stage demo -- tsx packages/core/src/db/migrate.ts",
+    "demo": "sst shell --stage demo -- tsx scripts/demo.ts",
+    "lint": "biome lint .",
+    "format": "biome format --write .",
+    "check": "biome check --write .",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run"
+  },
+  "devDependencies": {
+    "@aws-sdk/client-s3": "^3.1163.0",
+    "@biomejs/biome": "^2.6.5",
+    "@electric-sql/pglite": "^0.5.15",
+    "@types/aws-lambda": "^8.10.164",
+    "@types/node": "^26.6.6",
+    "sst": "^4.6.9",
+    "tsx": "^4.23.15",
+    "typescript": "^7.0.2",
+    "vitest": "^5.1.0"
+  }
+}

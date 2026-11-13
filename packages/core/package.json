@@ -1,0 +1,18 @@
+{
+  "name": "@demo/core",
+  "version": "0.0.1",
+  "private": true,
+  "type": "module",
+  "exports": {
+    "./*": "./src/*.ts"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^1.6.0",
+    "@aws-sdk/client-sqs": "^3.1163.0",
+    "@neondatabase/serverless": "^1.2.0",
+    "@slack/web-api": "^8.3.0",
+    "kysely": "^0.29.8",
+    "stripe": "^23.1.0",
+    "zod": "^4.6.7"
+  }
+}
