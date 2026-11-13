@@ -1,51 +1,115 @@
+import { randomUUID } from "node:crypto";
+import { setTimeout as sleep } from "node:timers/promises";
 import type { Deps } from "../deps.js";
 import { renderCard } from "./card.js";
 
+const PENDING = "pending:";
+
 /**
  * Makes Slack match the database: one card per saga, updated in place, and one
- * thread reply per history row. Slack has no idempotency key, so a crash between
- * posting and saving `slack_ts` can post a second card. Its buttons stay safe
- * because every decision is checked against the saga row.
+ * thread reply per history row. Several workers can sync the same saga at once,
+ * so each claims the card and the history rows with a conditional update first.
+ * Slack has no idempotency key. A crash between posting the card and saving its
+ * timestamp can post a second card; its buttons stay safe because every click is
+ * checked against the saga row. Thread replies are claimed before they post, so a
+ * crash can drop a reply. `saga_history` stays the audit record either way.
  */
 export async function syncSlack(deps: Deps, sagaId: string): Promise<void> {
+  const ts = await ensureCard(deps, sagaId);
+  if (!ts) return;
+  await updateCard(deps, sagaId, ts);
+  await postHistory(deps, sagaId, ts);
+}
+
+async function ensureCard(deps: Deps, sagaId: string): Promise<string | null> {
   const { db, chat } = deps;
-  const saga = await db.selectFrom("sagas").selectAll().where("id", "=", sagaId).executeTakeFirst();
-  if (!saga) return;
-  const channel = saga.slack_channel ?? deps.config.slackChannel;
-  const approvals = await db
-    .selectFrom("approvals")
-    .select(["reviewer", "reviewer_name"])
-    .where("saga_id", "=", saga.id)
-    .where("payload_hash", "=", saga.payload_hash ?? "")
-    .where("decision", "=", "approve")
-    .execute();
-  const card = renderCard(saga, approvals);
-
-  let ts = saga.slack_ts;
-  if (ts) {
-    await chat.update(channel, ts, card);
-  } else {
-    ts = await chat.post(channel, card);
-    await db
-      .updateTable("sagas")
-      .set({ slack_ts: ts, slack_channel: channel })
-      .where("id", "=", saga.id)
-      .execute();
+  const claim = `${PENDING}${randomUUID()}`;
+  const claimed = await db
+    .updateTable("sagas")
+    .set({ slack_ts: claim, slack_channel: deps.config.slackChannel })
+    .where("id", "=", sagaId)
+    .where("slack_ts", "is", null)
+    .returningAll()
+    .executeTakeFirst();
+  if (claimed) {
+    try {
+      const ts = await chat.post(deps.config.slackChannel, renderCard(claimed, []));
+      await db.updateTable("sagas").set({ slack_ts: ts }).where("id", "=", sagaId).execute();
+      return ts;
+    } catch (error) {
+      await db.updateTable("sagas").set({ slack_ts: null }).where("slack_ts", "=", claim).execute();
+      throw error;
+    }
   }
+  // Another worker is posting the card. Wait for its timestamp, then update it.
+  for (let i = 0; i < 20; i++) {
+    const row = await db
+      .selectFrom("sagas")
+      .select("slack_ts")
+      .where("id", "=", sagaId)
+      .executeTakeFirst();
+    if (!row) return null;
+    if (row.slack_ts && !row.slack_ts.startsWith(PENDING)) return row.slack_ts;
+    await sleep(250);
+  }
+  throw new Error(`Slack card for saga ${sagaId} is still being posted`);
+}
 
-  const pending = await db
-    .selectFrom("saga_history")
-    .select(["id", "actor", "note"])
-    .where("saga_id", "=", saga.id)
-    .where("slack_posted_at", "is", null)
-    .orderBy("id")
-    .execute();
-  for (const entry of pending) {
-    await chat.reply(channel, ts, `*${entry.actor}:* ${entry.note}`);
-    await db
-      .updateTable("saga_history")
-      .set({ slack_posted_at: new Date() })
-      .where("id", "=", entry.id)
+/** Renders from the latest row and repeats if the saga moved while Slack was updating. */
+async function updateCard(deps: Deps, sagaId: string, ts: string): Promise<void> {
+  const { db, chat } = deps;
+  for (let i = 0; i < 3; i++) {
+    const saga = await db
+      .selectFrom("sagas")
+      .selectAll()
+      .where("id", "=", sagaId)
+      .executeTakeFirstOrThrow();
+    const approvals = await db
+      .selectFrom("approvals")
+      .select(["reviewer", "reviewer_name"])
+      .where("saga_id", "=", sagaId)
+      .where("payload_hash", "=", saga.payload_hash ?? "")
+      .where("decision", "=", "approve")
       .execute();
+    await chat.update(
+      saga.slack_channel ?? deps.config.slackChannel,
+      ts,
+      renderCard(saga, approvals),
+    );
+    const after = await db
+      .selectFrom("sagas")
+      .select("version")
+      .where("id", "=", sagaId)
+      .executeTakeFirstOrThrow();
+    if (after.version === saga.version) return;
+  }
+}
+
+async function postHistory(deps: Deps, sagaId: string, ts: string): Promise<void> {
+  const { db, chat } = deps;
+  const claimed = await db
+    .updateTable("saga_history")
+    .set({ slack_posted_at: new Date() })
+    .where("saga_id", "=", sagaId)
+    .where("slack_posted_at", "is", null)
+    .returning(["id", "actor", "note"])
+    .execute();
+  const channel = deps.config.slackChannel;
+  for (const entry of claimed.sort((a, b) => a.id - b.id)) {
+    try {
+      await chat.reply(channel, ts, `*${entry.actor}:* ${entry.note}`);
+    } catch (error) {
+      // Release the rows not yet posted so a retry or the sweeper posts them.
+      await db
+        .updateTable("saga_history")
+        .set({ slack_posted_at: null })
+        .where(
+          "id",
+          "in",
+          claimed.filter((c) => c.id >= entry.id).map((c) => c.id),
+        )
+        .execute();
+      throw error;
+    }
   }
 }

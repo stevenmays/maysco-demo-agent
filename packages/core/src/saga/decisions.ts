@@ -27,12 +27,14 @@ export async function recordDecision(deps: Deps, msg: DecisionMessage): Promise<
         .selectFrom("saga_history")
         .select(["actor", "to_status"])
         .where("saga_id", "=", saga.id)
-        .where("to_status", "is not", null)
+        .where("to_status", "in", ["approved", "held"])
         .orderBy("id", "desc")
         .executeTakeFirst();
       return {
         channel,
-        reply: `This review is closed. It was ${last?.to_status?.replace("_", " ")} by ${last?.actor}.`,
+        reply: last
+          ? `This review is closed. It was ${last.to_status} by ${last.actor}.`
+          : "This review is closed.",
       };
     }
     if (msg.payloadHash !== saga.payload_hash) {

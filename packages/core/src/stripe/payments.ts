@@ -11,7 +11,7 @@ export interface SellerSnapshot {
 
 export interface Payments {
   getSeller(accountId: string): Promise<SellerSnapshot>;
-  findTransfer(sagaId: string): Promise<string | null>;
+  findTransfer(sagaId: string, destination: string): Promise<string | null>;
   createTransfer(input: {
     sagaId: string;
     amount: number;
@@ -53,9 +53,11 @@ export class StripePayments implements Payments {
   }
 
   // Idempotency keys can expire after 24 hours, so look before writing.
-  async findTransfer(sagaId: string): Promise<string | null> {
-    const page = await this.stripe.transfers.list({ transfer_group: sagaId, limit: 1 });
-    return page.data[0]?.id ?? null;
+  async findTransfer(sagaId: string, destination: string): Promise<string | null> {
+    for await (const transfer of this.stripe.transfers.list({ destination, limit: 100 })) {
+      if (transfer.metadata?.saga_id === sagaId) return transfer.id;
+    }
+    return null;
   }
 
   async createTransfer(input: Parameters<Payments["createTransfer"]>[0]): Promise<string> {

@@ -29,7 +29,7 @@ export class FakePayments implements Payments {
     if (!s) throw new Error(`unknown seller ${accountId}`);
     return { ...s };
   }
-  async findTransfer(sagaId: string) {
+  async findTransfer(sagaId: string, _destination: string) {
     return this.transfers.get(sagaId)?.id ?? null;
   }
   async createTransfer(input: Parameters<Payments["createTransfer"]>[0]) {

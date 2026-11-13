@@ -132,7 +132,7 @@ export async function startTransfer(deps: Deps, saga: Saga): Promise<void> {
 export async function completeTransfer(deps: Deps, saga: Saga): Promise<void> {
   const transferId =
     saga.transfer_id ??
-    (await deps.payments.findTransfer(saga.id)) ??
+    (await deps.payments.findTransfer(saga.id, saga.seller_account_id)) ??
     (await deps.payments.createTransfer({
       sagaId: saga.id,
       amount: saga.amount,

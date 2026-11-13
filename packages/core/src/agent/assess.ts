@@ -17,6 +17,10 @@ export const AssessmentSchema = z.object({
 });
 export type Assessment = z.infer<typeof AssessmentSchema>;
 
+// Only the JSON schema goes to the API. The SDK's parse() throws on a malformed
+// reply, which would hide the stop reason, so this file parses the reply itself.
+const { type: formatType, schema: formatSchema } = zodOutputFormat(AssessmentSchema);
+
 export interface AssessInput {
   seller: { legalName: string; country: string | null; lei: LeiRecord | null };
   candidates: Candidate[];
@@ -106,12 +110,12 @@ export class ClaudeAssessor implements Assessor {
           call: call({ outcome: "over_budget" }),
         };
       }
-      const response = await this.client.messages.parse({
+      const response = await this.client.messages.create({
         model: MODEL,
         max_tokens: input.maxOutputTokens ?? MAX_OUTPUT_TOKENS,
         system: SYSTEM,
         messages: [{ role: "user", content }],
-        output_config: { effort: "low", format: zodOutputFormat(AssessmentSchema) },
+        output_config: { effort: "low", format: { type: formatType, schema: formatSchema } },
       });
       const usage = {
         inputTokens: response.usage.input_tokens,
@@ -135,7 +139,7 @@ export class ClaudeAssessor implements Assessor {
           call: call({ ...usage, outcome: "refusal" }),
         };
       }
-      const assessment = response.parsed_output;
+      const assessment = parseAssessment(response.content);
       if (!assessment) {
         return {
           kind: "failed",
@@ -184,6 +188,17 @@ export class ClaudeAssessor implements Assessor {
       });
       if (input_tokens <= INPUT_TOKEN_BUDGET) return content;
     }
+    return null;
+  }
+}
+
+function parseAssessment(content: Anthropic.ContentBlock[]): Assessment | null {
+  const text = content.find((b): b is Anthropic.TextBlock => b.type === "text")?.text;
+  if (!text) return null;
+  try {
+    const result = AssessmentSchema.safeParse(JSON.parse(text));
+    return result.success ? result.data : null;
+  } catch {
     return null;
   }
 }

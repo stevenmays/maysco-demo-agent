@@ -5,7 +5,7 @@
  *   setup            Create Stripe webhooks, seed the sanctions mirror, create sellers
  *   pay <seller>     A buyer pays; starts a payout saga (add --chaos=<flag>)
  *   bank <seller>    The seller switches to a new bank account
- *   list-add <name>  Publish a sanctions list with one extra entity
+ *   list-add <name>  Publish a sanctions list with one extra fictional entity
  *   reset            Delete sagas and history; keep sellers and the sanctions list
  */
 import { execFileSync } from "node:child_process";
@@ -15,17 +15,26 @@ import { connect } from "@demo/core/db/client";
 import { Resource } from "sst";
 import Stripe from "stripe";
 
+// Fictional sellers. The near misses match fictional DEMO entries, so the video never
+// shows a name that could belong to a real business next to a sanctions hit.
 const SELLERS = {
-  clean: "Maple Ridge Ceramics LLC",
-  near: "Cimex Logistics Ltd",
-  race: "Coprova Trading SARL",
-  strong: "Avia Import LLC",
-  harbor: "Harbor Lantern Imports",
+  clean: "Brindlecove Ceramics LLC",
+  near: "Quillmark Traders LLC",
+  race: "Vesserot Marine LLC",
+  strong: "Orlenka Freight LLC",
+  harbor: "Tidewick Lantern Imports",
 } as const;
 type SellerKey = keyof typeof SELLERS;
 
+const DEMO_ENTRIES: ReadonlyArray<readonly [number, string]> = [
+  [990_001, "QUILLMARK TRADING HOUSE"],
+  [990_002, "VESSEROT MARINE SUPPLY"],
+  [990_003, "ORLENKA FREIGHT"],
+];
+
 const STATE_FILE = ".demo-state.json";
 const TREASURY = "https://sanctionslistservice.ofac.treas.gov/api/PublicationPreview/exports";
+const CRLF = "\r\n";
 const stripe = new Stripe(Resource.StripeSecretKey.value);
 const s3 = new S3Client({});
 const stage = process.env.SST_STAGE ?? "demo";
@@ -35,12 +44,40 @@ const load = (): State =>
   existsSync(STATE_FILE) ? JSON.parse(readFileSync(STATE_FILE, "utf8")) : { sellers: {} };
 const save = (s: State) => writeFileSync(STATE_FILE, `${JSON.stringify(s, null, 2)}\n`);
 
+const decode = (bytes: Uint8Array) => new TextDecoder("windows-1252").decode(bytes);
+const encode = (text: string) => new TextEncoder().encode(text);
+
 function setSecret(name: string, value: string) {
   // Passed on stdin so the value never appears in a process list or shell history.
   execFileSync("npx", ["sst", "secret", "set", name, "--stage", stage], {
     input: value,
     stdio: ["pipe", "ignore", "inherit"],
   });
+}
+
+/** Appends fictional entity rows in OFAC's SDN.CSV format, dropping the end-of-file byte. */
+function appendEntries(sdn: string, entries: ReadonlyArray<readonly [number, string]>): string {
+  const rows = entries.map(
+    ([id, name]) =>
+      `${id},"${name}",-0- ,"DEMO",-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,"Fictional entry for the demo."`,
+  );
+  const body = sdn.replaceAll(String.fromCharCode(0x1a), "").trimEnd();
+  return [body, ...rows, ""].join(CRLF);
+}
+
+async function putList(file: string, body: Uint8Array) {
+  await s3.send(
+    new PutObjectCommand({
+      Bucket: Resource.SanctionsMirror.name,
+      Key: `sanctions/${file}`,
+      Body: body,
+      ContentType: "text/csv",
+    }),
+  );
+}
+
+async function download(url: string): Promise<Uint8Array> {
+  return new Uint8Array(await (await fetch(url)).arrayBuffer());
 }
 
 async function setup() {
@@ -60,11 +97,12 @@ async function setup() {
     "Stripe webhooks created. Run `npm run deploy` so the functions read the new secrets.",
   );
 
-  for (const file of ["SDN.CSV", "ALT.CSV"]) {
-    const body = new Uint8Array(await (await fetch(`${TREASURY}/${file}`)).arrayBuffer());
-    await putList(file, body);
-  }
-  console.log("Sanctions mirror seeded from Treasury.");
+  await putList("ALT.CSV", await download(`${TREASURY}/ALT.CSV`));
+  const sdn = decode(await download(`${TREASURY}/SDN.CSV`));
+  await putList("SDN.CSV", encode(appendEntries(sdn, DEMO_ENTRIES)));
+  console.log(
+    `Sanctions mirror seeded from Treasury, plus ${DEMO_ENTRIES.length} fictional entries.`,
+  );
 
   const state = load();
   for (const [key, name] of Object.entries(SELLERS) as [SellerKey, string][]) {
@@ -90,21 +128,11 @@ async function setup() {
   save(state);
 }
 
-async function putList(file: string, body: Uint8Array) {
-  await s3.send(
-    new PutObjectCommand({
-      Bucket: Resource.SanctionsMirror.name,
-      Key: `sanctions/${file}`,
-      Body: body,
-      ContentType: "text/csv",
-    }),
-  );
-}
-
 function seller(key: string): string {
   const id = load().sellers[key as SellerKey];
-  if (!id)
+  if (!id) {
     throw new Error(`Unknown seller "${key}". Choose one of: ${Object.keys(SELLERS).join(", ")}`);
+  }
   return id;
 }
 
@@ -117,9 +145,8 @@ async function pay(key: string, chaos?: string) {
     confirm: true,
     metadata: { seller_account: seller(key), ...(chaos ? { chaos } : {}) },
   });
-  console.log(
-    `Payment ${intent.id} for ${SELLERS[key as SellerKey]}${chaos ? ` (chaos: ${chaos})` : ""}`,
-  );
+  const label = SELLERS[key as SellerKey];
+  console.log(`Payment ${intent.id} for ${label}${chaos ? ` (chaos: ${chaos})` : ""}`);
 }
 
 async function changeBank(key: string) {
@@ -132,30 +159,31 @@ async function changeBank(key: string) {
 
 async function listAdd(name: string) {
   const current = await s3.send(
-    new GetObjectCommand({ Bucket: Resource.SanctionsMirror.name, Key: "sanctions/SDN.CSV" }),
+    new GetObjectCommand({
+      Bucket: Resource.SanctionsMirror.name,
+      Key: "sanctions/SDN.CSV",
+    }),
   );
-  const text = new TextDecoder("windows-1252").decode(await current.Body!.transformToByteArray());
-  const entNum = 990_000 + Math.floor(Math.random() * 9_999);
-  const row = `${entNum},"${name.toUpperCase()}",-0- ,"DEMO",-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,-0- ,"Fictional entry added for the demo."`;
-  const body = `${text.replace(/\u001a\s*$/, "").trimEnd()}\r\n${row}\r\n`;
-  await putList("SDN.CSV", new TextEncoder().encode(body));
+  const sdn = decode(await current.Body!.transformToByteArray());
+  const entNum = 991_000 + Math.floor(Math.random() * 8_999);
+  const entity = name.toUpperCase();
+  await putList("SDN.CSV", encode(appendEntries(sdn, [[entNum, entity]])));
   console.log(
-    `Published a list with fictional entity ${entNum} "${name.toUpperCase()}". The poller picks it up within a minute.`,
+    `Published fictional entry ${entNum} "${entity}". The poller reads it within a minute.`,
   );
 }
 
 async function reset() {
   const db = connect(Resource.DatabaseUrl.value);
-  for (const table of [
+  const tables = [
     "approvals",
     "ledger_entries",
     "llm_calls",
     "saga_history",
     "outbox",
     "inbox",
-  ] as const) {
-    await db.deleteFrom(table).execute();
-  }
+  ] as const;
+  for (const table of tables) await db.deleteFrom(table).execute();
   await db.deleteFrom("sagas").execute();
   await db.destroy();
   console.log("Deleted sagas, history, outbox, inbox, approvals, ledger, and model calls.");
@@ -172,9 +200,8 @@ const commands: Record<string, () => Promise<void>> = {
 };
 const run = commands[command ?? ""];
 if (!run) {
-  console.error(
-    `Usage: npm run demo -- <${Object.keys(commands).join("|")}> [arg] [--chaos=skip_dispatch|llm_max_tokens]`,
-  );
+  const names = Object.keys(commands).join("|");
+  console.error(`Usage: npm run demo -- <${names}> [arg] [--chaos=skip_dispatch|llm_max_tokens]`);
   process.exit(1);
 }
 await run();

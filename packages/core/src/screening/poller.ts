@@ -11,19 +11,16 @@ export interface PollResult {
   removed: number[];
 }
 
-async function download(url: string, headers: Record<string, string>, fetchImpl: typeof fetch) {
-  const res = await fetchImpl(url, {
-    headers: { "user-agent": "sanctions-screening-demo", ...headers },
-  });
-  if (res.status === 304) return null;
+async function download(url: string, fetchImpl: typeof fetch) {
+  const res = await fetchImpl(url, { headers: { "user-agent": "sanctions-screening-demo" } });
   if (!res.ok) throw new Error(`GET ${url} returned ${res.status}`);
   const bytes = new Uint8Array(await res.arrayBuffer());
   return { bytes, lastModified: res.headers.get("last-modified") };
 }
 
 /**
- * Turns "the list changed" into an event. Treasury ignores If-Modified-Since, so the
- * poller hashes the body and emits only when the content changed.
+ * Turns "the list changed" into an event. Treasury's export doesn't answer conditional
+ * requests with 304, so the poller hashes the body and emits only when it changed.
  */
 export async function pollSanctions(
   deps: Pick<Deps, "db" | "queue">,
@@ -37,18 +34,13 @@ export async function pollSanctions(
     .orderBy("id", "desc")
     .executeTakeFirst();
 
-  const sdn = await download(
-    `${baseUrl}/SDN.CSV`,
-    last?.last_modified ? { "if-modified-since": last.last_modified } : {},
-    fetchImpl,
-  );
-  if (!sdn) return unchanged;
+  const sdn = await download(`${baseUrl}/SDN.CSV`, fetchImpl);
   const contentHash = createHash("sha256").update(sdn.bytes).digest("hex");
   if (contentHash === last?.content_hash) return unchanged;
 
-  const alt = await download(`${baseUrl}/ALT.CSV`, {}, fetchImpl);
+  const alt = await download(`${baseUrl}/ALT.CSV`, fetchImpl);
   const decode = (b: Uint8Array) => new TextDecoder("windows-1252").decode(b);
-  const entities = parseEntities(decode(sdn.bytes), alt ? decode(alt.bytes) : "");
+  const entities = parseEntities(decode(sdn.bytes), decode(alt.bytes));
   // A truncated download must not wipe the list.
   if (entities.length < MIN_ENTITIES) {
     throw new Error(`Refusing a sanctions list with only ${entities.length} entities`);

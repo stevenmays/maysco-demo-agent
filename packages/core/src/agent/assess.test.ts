@@ -12,7 +12,7 @@ function fakeClient(response: unknown, inputTokens = 500) {
   return {
     messages: {
       countTokens: async () => ({ input_tokens: inputTokens }),
-      parse: async () => {
+      create: async () => {
         if (response instanceof Error) throw response;
         return response;
       },
@@ -21,6 +21,11 @@ function fakeClient(response: unknown, inputTokens = 500) {
 }
 
 const usage = { input_tokens: 500, output_tokens: 80 };
+const reply = (stop_reason: string, text: string) => ({
+  stop_reason,
+  usage,
+  content: [{ type: "text", text }],
+});
 const assessment = {
   verdict: "possible_match",
   matched_ent_num: 559,
@@ -31,22 +36,27 @@ const assessment = {
 describe("ClaudeAssessor", () => {
   it("returns a validated assessment", async () => {
     const out = await new ClaudeAssessor(
-      fakeClient({ stop_reason: "end_turn", usage, parsed_output: assessment }),
+      fakeClient(reply("end_turn", JSON.stringify(assessment))),
     ).assess(input);
     expect(out.kind).toBe("ok");
   });
 
   it.each([
-    ["max_tokens", { stop_reason: "max_tokens", usage, parsed_output: null }],
-    ["refusal", { stop_reason: "refusal", usage, parsed_output: null }],
-    ["invalid_output", { stop_reason: "end_turn", usage, parsed_output: null }],
+    ["max_tokens", reply("max_tokens", '{"verdict": "possible_')],
+    ["refusal", reply("refusal", "")],
+    ["invalid_output", reply("end_turn", "The seller looks like a possible match.")],
+    ["invalid_output", reply("end_turn", JSON.stringify({ ...assessment, verdict: "maybe" }))],
     [
       "invalid_reference",
-      { stop_reason: "end_turn", usage, parsed_output: { ...assessment, matched_ent_num: 4242 } },
+      reply("end_turn", JSON.stringify({ ...assessment, matched_ent_num: 4242 })),
     ],
   ])("treats %s as a failure that retrying won't fix", async (outcome, response) => {
     const out = await new ClaudeAssessor(fakeClient(response)).assess(input);
-    expect(out).toMatchObject({ kind: "failed", retryable: false, call: { outcome } });
+    expect(out).toMatchObject({
+      kind: "failed",
+      retryable: false,
+      call: { outcome },
+    });
   });
 
   it("marks an overloaded API as retryable", async () => {

@@ -1,5 +1,6 @@
 import { sql } from "kysely";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
+import { syncSlack } from "../slack/sync.js";
 import { drain, ledgerTotals, makeDeps, okPossible, type TestDeps } from "../test-utils.js";
 import { handleMessage } from "../worker.js";
 import { onListChanged, onSellerChanged } from "./compensation.js";
@@ -316,5 +317,17 @@ describe("sanctions list changes", () => {
     expect(s.status).toBe("held");
     expect(deps.payments.reversed).toEqual([s.transfer_id]);
     await expectBalancedLedger();
+  });
+});
+
+describe("slack sync", () => {
+  it("posts one card when several workers sync the same saga at once", async () => {
+    deps.payments.addSeller("acct_clean", "Brindlecove Ceramics LLC");
+    await pay("acct_clean");
+    const s = await saga();
+    await Promise.all([syncSlack(deps, s.id), syncSlack(deps, s.id), syncSlack(deps, s.id)]);
+
+    expect(deps.chat.posts).toHaveLength(1);
+    expect(deps.chat.replies).toHaveLength(1);
   });
 });
