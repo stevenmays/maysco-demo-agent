@@ -85,7 +85,7 @@ export function renderCard(saga: Saga, approvals: ApprovalView[]): Message {
       elements: [
         {
           type: "mrkdwn",
-          text: `Needs ${needed} different reviewer${needed > 1 ? "s" : ""} · ${approvals.length} of ${needed} approved${names ? ` (${names})` : ""}${saga.review_expires_at ? ` · expires <!date^${Math.floor(new Date(saga.review_expires_at).getTime() / 1000)}^{time}|soon>` : ""}`,
+          text: `${needed > 1 ? `Needs ${needed} different reviewers` : "Needs 1 reviewer"} · ${approvals.length} of ${needed} approved${names ? ` (${names})` : ""}${saga.review_expires_at ? ` · expires <!date^${Math.floor(new Date(saga.review_expires_at).getTime() / 1000)}^{time}|soon>` : ""}`,
         },
       ],
     });
