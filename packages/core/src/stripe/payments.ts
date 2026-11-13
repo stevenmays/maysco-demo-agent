@@ -48,7 +48,8 @@ export class StripePayments implements Payments {
       accountId,
       legalName: account.company?.name ?? account.business_profile?.name ?? accountId,
       country: account.country ?? null,
-      bankFingerprint: bank ? `${bank.fingerprint ?? bank.id}:${bank.last4}` : null,
+      // The record ID, not the fingerprint: re-adding even the same account number voids approval.
+      bankFingerprint: bank ? `${bank.id}:${bank.last4}` : null,
     };
   }
 
